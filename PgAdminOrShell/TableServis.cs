@@ -11,7 +11,7 @@ namespace PgAdminOrShell;
 
 public class TableServis
 {
-    public void CreateTable(string tableName,NpgsqlConnection connection,List<string> Columns)
+    public async Task CreateTable(string tableName,NpgsqlConnection connection,List<string> Columns)
     {
         if (Columns != null || tableName != null)
         {
@@ -20,7 +20,7 @@ public class TableServis
             using (NpgsqlCommand command = connection.CreateCommand())
             {
                 command.CommandText = query;
-                command.ExecuteNonQuery();
+                await command.ExecuteNonQueryAsync();
             }
         }
         else
@@ -28,30 +28,38 @@ public class TableServis
         
     }
 
-    public void SelectTable(string tableName, NpgsqlConnection connection) 
+    public async Task SelectTable(string tableName,string connectionString) 
     {
+        Console.WriteLine(tableName);
+        Console.WriteLine(connectionString);
+        Console.ReadKey();
         if (tableName != null)
         {
-            string query = $"SELECT * FROM {tableName}";
-
-            using (var command = new NpgsqlCommand(query, connection))
+            using (NpgsqlConnection connection = new NpgsqlConnection(connectionString))
             {
-                using (var reader = command.ExecuteReader())
-                {
-                    for (int i = 0; i < reader.FieldCount; i++)
-                    {
-                        Console.Write($"{reader.GetName(i)}\t");
-                    }
-                    Console.WriteLine();
-                    Console.WriteLine(new string('-', 50));
+                string query = $"SELECT * FROM {tableName}";
 
-                    while (reader.Read())
+                using (var command = new NpgsqlCommand(query, connection))
+                {
+                    using (var reader = await command.ExecuteReaderAsync())
                     {
+                        Console.WriteLine("Reader");
+                        Console.ReadKey();
                         for (int i = 0; i < reader.FieldCount; i++)
                         {
-                            Console.Write($"{reader[i]}\t");
+                            Console.Write($"{reader.GetName(i)}\t");
                         }
                         Console.WriteLine();
+                        Console.WriteLine(new string('-', 50));
+
+                        while (await reader.ReadAsync())
+                        {
+                            for (int i = 0; i < reader.FieldCount; i++)
+                            {
+                                Console.Write($"{reader[i]}\t");
+                            }
+                            Console.WriteLine();
+                        }
                     }
                 }
             }
@@ -60,7 +68,7 @@ public class TableServis
             Console.WriteLine("Empty!");
     }
 
-    public void InsertTable(string tableName,NpgsqlConnection connection)
+    public async Task InsertTable(string tableName,NpgsqlConnection connection)
     {
         List<object> columns = new List<object>();  
         if (tableName != null)
@@ -69,16 +77,16 @@ public class TableServis
                 string query = $"SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{tableName}'";
                 using (var command = new NpgsqlCommand(query, connection))
                 {
-                    using (NpgsqlDataReader reader = command.ExecuteReader())
+                    using (NpgsqlDataReader reader = await command.ExecuteReaderAsync())
                     {
-                        while (reader.Read())
+                        while (await reader.ReadAsync())
                         {
                             Console.Write($" {reader["COLUMN_NAME"]} ({reader["DATA_TYPE"]}): ");
                             var column = Console.ReadLine();
                             columns.Add(column);
 
                         }
-                        InsertData(connection, columns, tableName);
+                        await InsertData(connection, columns, tableName);
                     }
                 }
             }
@@ -89,28 +97,28 @@ public class TableServis
 
     }
 
-    public void UpdateTable(string tableName,NpgsqlConnection connection,string condition,string change)
+    public async Task UpdateTable(string tableName,NpgsqlConnection connection,string condition,string change)
     {
         string query=$"update {tableName} set {change} where {condition}";
         using (var command = new NpgsqlCommand(query, connection))
         {
-            command.ExecuteNonQuery();
+            await command.ExecuteNonQueryAsync();
         }
     }
 
-    public void DropTable(string tableName,NpgsqlConnection connection) 
+    public async Task DropTable(string tableName,NpgsqlConnection connection) 
     {
         string queryDropTable = $"Drop Table {tableName}";
 
         using (NpgsqlCommand command = new NpgsqlCommand(queryDropTable, connection))
         {
-            command.ExecuteNonQuery();
+            await command.ExecuteNonQueryAsync();
         }
     }
 
     
 
-    public void StructureTable(string tableName,NpgsqlConnection connection)
+    public async Task StructureTable(string tableName,NpgsqlConnection connection)
     {
         if (tableName != null)
         {
@@ -118,10 +126,10 @@ public class TableServis
 
             using (var command = new NpgsqlCommand(query, connection))
             {
-                using (NpgsqlDataReader reader = command.ExecuteReader())
+                using (NpgsqlDataReader reader =await command.ExecuteReaderAsync())
                 {
                     Console.WriteLine($"Table: {tableName}");
-                    while (reader.Read())
+                    while (await reader.ReadAsync())
                     {
                         Console.WriteLine($" {reader["COLUMN_NAME"]} : {reader["DATA_TYPE"]}");
                     }
@@ -133,12 +141,12 @@ public class TableServis
 
     }
 
-   public void InsertData(NpgsqlConnection connection,List<object> columns,string tableName)
+   public async Task InsertData(NpgsqlConnection connection,List<object> columns,string tableName)
     {
         string query = $"Insert into {tableName} Values ({string.Join(',', columns)})";
         using (var command= new NpgsqlCommand(query, connection)) 
         {
-            command.ExecuteNonQuery();
+            await command.ExecuteNonQueryAsync();
         }
     }
 }

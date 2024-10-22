@@ -4,12 +4,13 @@ using PgAdminOrShell;
 class Program
 {
     public static string ConnectionString { get; set; }
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
+        
+        TableServis tableServis = new TableServis();
+
         ConnectDatabase connectDatabase = new ConnectDatabase();
         ConnectionString = connectDatabase.ConnectionStringCollect();
-
-        TableServis tableServis = new TableServis();
 
         bool choice = true;
         do
@@ -18,8 +19,8 @@ class Program
             {
                 using (NpgsqlConnection conn = new NpgsqlConnection(ConnectionString))
                 {
-                    conn.Open();
-                    conn.Close();
+                    await conn.OpenAsync();
+                    await conn.CloseAsync();
                 }
                 List<string> schemaList = new List<string>() { "Tables", "Functions", "Procedures", "Sequences", "ERD For Database", "Query Tool", "Back" };
                 string choicesDatabase = WorkingWithLists(schemaList);
@@ -28,7 +29,7 @@ class Program
                 {
                     case "Tables":
                         string tableQuery = "SELECT table_name \r\nFROM information_schema.tables \r\nWHERE table_schema = 'public';\r\n";
-                        List<string> tableList = ElementsInBaseConvert(tableQuery);
+                        List<string> tableList = await ElementsInBaseConvert(tableQuery);
                         if (tableList.Count > 0)
                         {
                             string tableName = WorkingWithLists(tableList);
@@ -43,7 +44,8 @@ class Program
                                         break;
 
                                     case "Select":
-                                        Console.WriteLine("Select");
+                                        await tableServis.SelectTable(tableName,ConnectionString);
+                                        Console.ReadKey();
                                         break;
 
                                     case "Insert":
@@ -74,7 +76,7 @@ class Program
                         break;
                     case "Functions":
                         string functionQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
-                        List<string> functionList = ElementsInBaseConvert(functionQuery);
+                        List<string> functionList = await ElementsInBaseConvert(functionQuery);
                         if (functionList.Count > 0)
                         {
                             string functionName = WorkingWithLists(functionList);
@@ -88,7 +90,7 @@ class Program
                         break;
                     case "Procedures":
                         string procedureQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
-                        List<string> procedureList = ElementsInBaseConvert(procedureQuery);
+                        List<string> procedureList = await ElementsInBaseConvert(procedureQuery);
                         if (procedureList.Count > 0)
                         {
                             string procedureName = WorkingWithLists(procedureList);
@@ -102,7 +104,7 @@ class Program
                         break;
                     case "Sequences":
                         string sequencesQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
-                        List<string> sequencesList = ElementsInBaseConvert(sequencesQuery);
+                        List<string> sequencesList = await ElementsInBaseConvert(sequencesQuery);
                         if (sequencesList.Count > 0)
                         {
                             string sequencesName = WorkingWithLists(sequencesList);
@@ -116,15 +118,15 @@ class Program
                     case "ERD For Database":
                         using (var connection = new NpgsqlConnection(ConnectionString))
                         {
-                            connection.Open();
+                            await connection.OpenAsync();
 
                             // Jadvallar ro'yxatini olish
                             string tableErdQuery = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'";
                             using (var command = new NpgsqlCommand(tableErdQuery, connection))
-                            using (var reader = command.ExecuteReader())
+                            using (var reader = await command.ExecuteReaderAsync())
                             {
                                 Console.WriteLine("Jadvallar:");
-                                while (reader.Read())
+                                while (await reader.ReadAsync())
                                 {
                                     Console.WriteLine($" - {reader.GetString(0)}");
                                 }
@@ -173,7 +175,7 @@ class Program
 
                         using (var connection = new NpgsqlConnection(ConnectionString))
                         {
-                            connection.Open();
+                             await connection.OpenAsync();
 
                             using (var command = new NpgsqlCommand(sqlQuery, connection))
                             {
@@ -182,7 +184,7 @@ class Program
                                     // SELECT so'rovi uchun
                                     if (sqlQuery.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        using (var reader = command.ExecuteReader())
+                                        using (var reader = await command.ExecuteReaderAsync())
                                         {
                                             // Jadval ko'rinishida chiqarish
                                             Console.WriteLine();
@@ -196,7 +198,7 @@ class Program
 
                                             if (reader.HasRows)
                                             {
-                                                while (reader.Read())
+                                                while (await reader.ReadAsync())
                                                 {
                                                     for (int i = 0; i < reader.FieldCount; i++)
                                                     {
@@ -211,14 +213,16 @@ class Program
                                             }
                                         }
                                     }
-                                    // CREATE, INSERT, UPDATE, DELETE, ALTER so'rovlari uchun
+                                    // CREATE, INSERT, UPDATE, DELETE, ALTER, DROP so'rovlari uchun
                                     else if (sqlQuery.TrimStart().StartsWith("CREATE", StringComparison.OrdinalIgnoreCase) ||
                                              sqlQuery.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) ||
                                              sqlQuery.TrimStart().StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) ||
                                              sqlQuery.TrimStart().StartsWith("DELETE", StringComparison.OrdinalIgnoreCase) ||
-                                             sqlQuery.TrimStart().StartsWith("ALTER", StringComparison.OrdinalIgnoreCase))
+                                             sqlQuery.TrimStart().StartsWith("ALTER", StringComparison.OrdinalIgnoreCase) ||
+                                              sqlQuery.TrimStart().StartsWith("DROP", StringComparison.OrdinalIgnoreCase)
+                                             )
                                     {
-                                        int affectedRows = command.ExecuteNonQuery();
+                                        int affectedRows = await command.ExecuteNonQueryAsync();
                                         Console.WriteLine($"{affectedRows} ta qator o'zgartirildi.");
                                     }
                                     else
@@ -237,7 +241,7 @@ class Program
 
                     case "Back":
                         string databaseQuery = "SELECT datname FROM pg_database;";
-                        List<string> elements = ElementsInBaseConvert(databaseQuery);
+                        List<string> elements = await ElementsInBaseConvert(databaseQuery);
                         string newDatabase = WorkingWithLists(elements);
                         if (newDatabase != "Back")
                         {
@@ -259,6 +263,8 @@ class Program
                 Console.WriteLine("\nDatabase, username, port or password may be wrong!");
                 Console.ReadKey();
                 Console.Clear();
+                ConnectDatabase connectDatabases = new ConnectDatabase();
+                ConnectionString = connectDatabases.ConnectionStringCollect();
             }
             #endregion
 
@@ -286,25 +292,25 @@ class Program
 
     }
 
-    static List<string> ElementsInBaseConvert(string query)
+    static async Task<List<string>> ElementsInBaseConvert(string query)
     {
         List<string> list = new List<string>();
 
         using (NpgsqlConnection connection = new NpgsqlConnection(ConnectionString))
         {
-            connection.Open();
+            await connection.OpenAsync();
             using (var cmd = new NpgsqlCommand(query, connection))
             {
-                using (var reader = cmd.ExecuteReader())
+                using (var reader = await cmd.ExecuteReaderAsync())
                 {
-                    while (reader.Read())
+                    while ( await reader.ReadAsync())
                     {
                         list.Add(reader.GetString(0)); // Baza nomini chiqaradi
                     }
                     list.Add("Back");
                 }
             }
-            connection.Close();
+            await connection.CloseAsync();
         }
 
         return list;
