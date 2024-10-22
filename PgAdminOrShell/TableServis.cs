@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace PgAdminOrShell;
 
-public class Table
+public class TableServis
 {
     public void CreateTable(string tableName,NpgsqlConnection connection,List<string> Columns)
     {
@@ -65,19 +65,21 @@ public class Table
         List<object> columns = new List<object>();  
         if (tableName != null)
         {
-            string query = $"SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{tableName}'";
-            using (var command = new NpgsqlCommand(query, connection))
-            {
-                using (NpgsqlDataReader reader = command.ExecuteReader())
+            using (NpgsqlConnection connect = new NpgsqlConnection()) {
+                string query = $"SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{tableName}'";
+                using (var command = new NpgsqlCommand(query, connection))
                 {
-                    while (reader.Read())
+                    using (NpgsqlDataReader reader = command.ExecuteReader())
                     {
-                        Console.Write($" {reader["COLUMN_NAME"]} ({reader["DATA_TYPE"]}): ");
-                        var column=Console.ReadLine();
-                        columns.Add(column);
+                        while (reader.Read())
+                        {
+                            Console.Write($" {reader["COLUMN_NAME"]} ({reader["DATA_TYPE"]}): ");
+                            var column = Console.ReadLine();
+                            columns.Add(column);
 
+                        }
+                        InsertData(connection, columns, tableName);
                     }
-                    InsertData(connection, columns,tableName);
                 }
             }
         }
@@ -106,18 +108,7 @@ public class Table
         }
     }
 
-    public void ListTable(NpgsqlConnection connection) 
-    {
-        DataTable dataTable = connection.GetSchema("Tables");
-
-        Console.WriteLine($"{dataTable.Rows.Count} tables found!");
-
-        foreach (DataRow table in dataTable.Rows)
-        {
-            Console.WriteLine(table["table_name"]);
-        }
-
-    }
+    
 
     public void StructureTable(string tableName,NpgsqlConnection connection)
     {

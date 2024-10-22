@@ -1,238 +1,348 @@
 ﻿using Npgsql;
 using PgAdminOrShell;
-using System.Data;
-using System.Xml.Linq;
 
 class Program
 {
-
-    public static void Main(string[] args)
+    public static string ConnectionString { get; set; }
+    static void Main(string[] args)
     {
-        Table tables = new Table();
-        metka:
-        #region ConnectionString
-        string server = "localhost";
-       
-        int port = 5432;
+        ConnectDatabase connectDatabase = new ConnectDatabase();
+        ConnectionString = connectDatabase.ConnectionStringCollect();
 
-        string username = "postgres";
+        TableServis tableServis = new TableServis();
 
-        Console.Write("Enter the database: ");
-        string? database = Console.ReadLine();
-
-        Console.Write("Password for user postgres: ");
-        string? password = Console.ReadLine();
-        
-
-        string ConnectionString = $"Host = {server}; Port = {port}; Database = {database}; User Id = {username}; password = {password}";
-
-        #endregion
-        try
+        bool choice = true;
+        do
         {
-            using (NpgsqlConnection connection = new NpgsqlConnection(ConnectionString))
+            try
             {
-                connection.Open();
-                bool choice = true;
-                while (choice)
+                using (NpgsqlConnection conn = new NpgsqlConnection(ConnectionString))
                 {
-                    Console.Clear();
-                    
-                    Console.WriteLine("1.Tables");
-                    Console.WriteLine("2.Functions");
-                    Console.WriteLine("3.Procedures");
-                    Console.WriteLine("4.Sequences");
-                    Console.WriteLine("5.Exit");
+                    conn.Open();
+                    conn.Close();
+                }
+                List<string> schemaList = new List<string>() { "Tables", "Functions", "Procedures", "Sequences", "ERD For Database", "Query Tool", "Back" };
+                string choicesDatabase = WorkingWithLists(schemaList);
+
+                switch (choicesDatabase)
+                {
+                    case "Tables":
+                        string tableQuery = "SELECT table_name \r\nFROM information_schema.tables \r\nWHERE table_schema = 'public';\r\n";
+                        List<string> tableList = ElementsInBaseConvert(tableQuery);
+                        if (tableList.Count > 0)
+                        {
+                            string tableName = WorkingWithLists(tableList);
+                            if (tableName != "Back")
+                            {
+                                List<string> tablePractices = new List<string> { "Create", "Select", "Insert", "Update", "Drop", "Structure", "Back" };
+                                string tableChoice = WorkingWithLists(tablePractices);
+                                switch (tableChoice)
+                                {
+                                    case "Create":
+                                        Console.WriteLine("Create");
+                                        break;
+
+                                    case "Select":
+                                        Console.WriteLine("Select");
+                                        break;
+
+                                    case "Insert":
+                                        Console.WriteLine("Insert");
+                                        break;
+
+                                    case "Update":
+                                        Console.WriteLine("Update");
+                                        break;
+
+                                    case "Drop":
+                                        Console.WriteLine("Drop");
+                                        break;
+
+                                    case "Structure":
+                                        Console.WriteLine("Structure");
+                                        break;
 
 
-                    bool selectorBeauty = int.TryParse(Console.ReadLine(), out int selector);
-                    Console.Clear();
-                    switch (selector)
-                    {
-                        //Tables
-                        case 1:
-                            
-                            bool choiceTable = true;
-                            while (choiceTable)
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("Table not found!");
+                        }
+                        Console.ReadKey();
+                        break;
+                    case "Functions":
+                        string functionQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
+                        List<string> functionList = ElementsInBaseConvert(functionQuery);
+                        if (functionList.Count > 0)
+                        {
+                            string functionName = WorkingWithLists(functionList);
+
+                        }
+                        else
+                        {
+                            Console.WriteLine("Function not found!");
+                        }
+                        Console.ReadKey();
+                        break;
+                    case "Procedures":
+                        string procedureQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
+                        List<string> procedureList = ElementsInBaseConvert(procedureQuery);
+                        if (procedureList.Count > 0)
+                        {
+                            string procedureName = WorkingWithLists(procedureList);
+                            Console.WriteLine(procedureName);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Procedure not found!");
+                        }
+                        Console.ReadKey();
+                        break;
+                    case "Sequences":
+                        string sequencesQuery = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
+                        List<string> sequencesList = ElementsInBaseConvert(sequencesQuery);
+                        if (sequencesList.Count > 0)
+                        {
+                            string sequencesName = WorkingWithLists(sequencesList);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Sequence not found!");
+                        }
+                        Console.ReadKey();
+                        break;
+                    case "ERD For Database":
+                        using (var connection = new NpgsqlConnection(ConnectionString))
+                        {
+                            connection.Open();
+
+                            // Jadvallar ro'yxatini olish
+                            string tableErdQuery = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'";
+                            using (var command = new NpgsqlCommand(tableErdQuery, connection))
+                            using (var reader = command.ExecuteReader())
+                            {
+                                Console.WriteLine("Jadvallar:");
+                                while (reader.Read())
+                                {
+                                    Console.WriteLine($" - {reader.GetString(0)}");
+                                }
+                            }
+
+                            // Har bir jadval uchun ustunlar va ularning turlarini olish
+                            string columnQuery = "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public'";
+                            using (var command = new NpgsqlCommand(columnQuery, connection))
+                            using (var reader = command.ExecuteReader())
+                            {
+                                Console.WriteLine("\nColumns and their types:");
+                                while (reader.Read())
+                                {
+                                    Console.WriteLine($"Table: {reader.GetString(0)}, Comumn: {reader.GetString(1)}, Type: {reader.GetString(2)}");
+                                }
+                            }
+
+                            // Jadvallar o'rtasidagi bog'lanishlar (agar mavjud bo'lsa)
+                            string foreignKeyQuery = "SELECT tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name " +
+                                                      "FROM information_schema.table_constraints AS tc " +
+                                                      "JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name " +
+                                                      "JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name " +
+                                                      "WHERE constraint_type = 'FOREIGN KEY'";
+                            using (var command = new NpgsqlCommand(foreignKeyQuery, connection))
+                            using (var reader = command.ExecuteReader())
+                            {
+                                if (reader.HasRows)
+                                {
+                                    Console.WriteLine("\nConnections:");
+                                    while (reader.Read())
+                                    {
+                                        Console.WriteLine($"Table: {reader.GetString(0)}.{reader.GetString(1)} -> {reader.GetString(2)}.{reader.GetString(3)}");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("\nLink not available!");
+                                }
+                            }
+                        }
+                        Console.ReadKey();
+                        break;
+                    case "Query Tool":
+                        Console.WriteLine("Iltimos, SQL so'rovini kiriting:");
+                        string sqlQuery = Console.ReadLine();
+
+                        using (var connection = new NpgsqlConnection(ConnectionString))
+                        {
+                            connection.Open();
+
+                            using (var command = new NpgsqlCommand(sqlQuery, connection))
                             {
                                 try
                                 {
-                                    Console.Clear();
-                                    Console.WriteLine("1.Create Table");
-                                    Console.WriteLine("2.Select Table");
-                                    Console.WriteLine("3.Insert Table");
-                                    Console.WriteLine("4.Update Table");
-                                    Console.WriteLine("5.Drop Table");
-                                    Console.WriteLine("6.Tables List");
-                                    Console.WriteLine("7.Table structure");
-                                    Console.WriteLine("8.Exit");
-
-                                    bool selectorTableBeauty = int.TryParse(Console.ReadLine(), out int selectorTable);
-                                    Console.Clear();
-                                    switch (selectorTable)
+                                    // SELECT so'rovi uchun
+                                    if (sqlQuery.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        case 1:
-                                            Console.Write("Table name: ");
-                                            string tableNameCreate = Console.ReadLine();
-                                            bool columnBeauty = true;
-                                            List<string> columns = new List<string>();
-                                            while (columnBeauty)
+                                        using (var reader = command.ExecuteReader())
+                                        {
+                                            // Jadval ko'rinishida chiqarish
+                                            Console.WriteLine();
+                                            for (int i = 0; i < reader.FieldCount; i++)
                                             {
-                                                Console.Clear();
-                                                Console.Write("Column name: ");
-                                                string columnName= Console.ReadLine();
-
-                                                Console.Write("Column type: ");
-                                                string columnType = Console.ReadLine();
-                                                columns.Add(columnName + " " + columnType);
-
-                                                Console.WriteLine("Would you like to add more information?");
-                                                Console.WriteLine("1.Yes\n2.No");
-                                                if (Console.ReadLine() == "2")
-                                                    columnBeauty = false;
-                                                
-                                                    
-
+                                                Console.Write($"{reader.GetName(i),-20}"); // Ustun nomini chiqarish
                                             }
+                                            Console.WriteLine();
 
-                                            tables.CreateTable(tableNameCreate,connection, columns);
-                                            Console.WriteLine("Succes!");
-                                            Console.ReadKey();
-                                            break;
-                                        case 2:
-                                            Console.Write("Table name: ");
-                                            string tableNameSelect = Console.ReadLine();
-                                            tables.SelectTable(tableNameSelect, connection);
-                                            Console.ReadKey();
-                                            break;
-                                        case 3:
-                                            Console.Write("Table name: ");
-                                            string tableNameInsert = Console.ReadLine();
-                                            tables.InsertTable(tableNameInsert, connection);
-                                            Console.WriteLine("Succes!");
-                                            Console.ReadKey();
-                                            break;
-                                        case 4:
-                                            Console.Write("Table name: ");
-                                            string tableNameUpdate = Console.ReadLine();
+                                            Console.WriteLine(new string('-', 20 * reader.FieldCount)); // Bo'sh chiziq
 
-                                            Console.Write("Changes: ");
-                                            string change = Console.ReadLine();
-
-                                            Console.Write("Condition: ");
-                                            string condition= Console.ReadLine();
-
-                                            tables.UpdateTable(tableNameUpdate, connection,condition,change);
-                                            Console.WriteLine("Succes!");
-                                            Console.ReadKey();
-                                            break;
-
-                                        case 5:
-                                            Console.Write("Table name: ");
-                                            string tableNameDrop = Console.ReadLine();
-
-                                            tables.DropTable(tableNameDrop, connection);
-                                            Console.WriteLine("Succes!");
-                                            Console.ReadKey();
-                                            break;
-                                        case 6:
-                                            tables.ListTable(connection);
-                                            Console.ReadKey();
-                                            break;
-                                        case 7:
-                                            Console.Write("Table name: ");
-                                            string tableStructName = Console.ReadLine();
-                                            tables.StructureTable(tableStructName, connection);
-                                            Console.ReadKey();
-                                            break;
-                                        case 8:
-                                            choiceTable = false;
-                                            break;
-                                        default:
-                                            Console.WriteLine("Error data!");
-                                            break;
+                                            if (reader.HasRows)
+                                            {
+                                                while (reader.Read())
+                                                {
+                                                    for (int i = 0; i < reader.FieldCount; i++)
+                                                    {
+                                                        Console.Write($"{reader[i],-20} "); // Jadvaldagi ma'lumotlar
+                                                    }
+                                                    Console.WriteLine();
+                                                }
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("Natijalar topilmadi.");
+                                            }
+                                        }
                                     }
-                                }
-                                catch (Exception ex) 
-                                {
-                                    Console.WriteLine(ex.Message); 
-                                    Console.ReadKey();
-                                }
-                            }
-                            
-                            break;
-                        //Functions
-                        case 2:
-                            string queryFunction = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
-
-                            using (var command = new NpgsqlCommand(queryFunction, connection))
-                            {
-                                using (var reader = command.ExecuteReader())
-                                {
-                                    Console.WriteLine("Function Names:");
-                                    while (reader.Read())
+                                    // CREATE, INSERT, UPDATE, DELETE, ALTER so'rovlari uchun
+                                    else if (sqlQuery.TrimStart().StartsWith("CREATE", StringComparison.OrdinalIgnoreCase) ||
+                                             sqlQuery.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) ||
+                                             sqlQuery.TrimStart().StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) ||
+                                             sqlQuery.TrimStart().StartsWith("DELETE", StringComparison.OrdinalIgnoreCase) ||
+                                             sqlQuery.TrimStart().StartsWith("ALTER", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        Console.WriteLine(reader["proname"]);
+                                        int affectedRows = command.ExecuteNonQuery();
+                                        Console.WriteLine($"{affectedRows} ta qator o'zgartirildi.");
                                     }
-                                }
-                            }
-                            Console.ReadKey();
-                            break;
-                        //Procedures
-                        case 3:
-                            string queryProcedure = "SELECT proname FROM pg_proc WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')";
-
-                            using (var command = new NpgsqlCommand(queryProcedure, connection))
-                            {
-                                using (var reader = command.ExecuteReader())
-                                {
-                                    Console.WriteLine("Stored Procedure Names:");
-                                    while (reader.Read())
+                                    else
                                     {
-                                        Console.WriteLine(reader["proname"]);
+                                        Console.WriteLine("Noto'g'ri SQL so'rovi.");
                                     }
                                 }
-                            }
-                            Console.ReadKey();
-                            break;
-                        //Sequences
-                        case 4:
-                            string query = "SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'";
-
-                            using (var command = new NpgsqlCommand(query, connection))
-                            {
-                                using (var reader = command.ExecuteReader())
+                                catch (Exception ex)
                                 {
-                                    Console.WriteLine("Sequence Names:");
-                                    while (reader.Read())
-                                    {
-                                        Console.WriteLine(reader["sequence_name"]);
-                                    }
+                                    Console.WriteLine($"Xatolik: {ex.Message}");
                                 }
                             }
-                            Console.ReadKey();
-                            break;
-                        //Exit
-                        case 5:
+                        }
+                        Console.ReadKey();
+                        break;
+
+                    case "Back":
+                        string databaseQuery = "SELECT datname FROM pg_database;";
+                        List<string> elements = ElementsInBaseConvert(databaseQuery);
+                        string newDatabase = WorkingWithLists(elements);
+                        if (newDatabase != "Back")
+                        {
+                            ConnectionString = $"Host = {connectDatabase.server};Port={connectDatabase.port};Database={newDatabase}; User Id={connectDatabase.username}; password={connectDatabase.password}";
+                        }
+                        else
+                        {
                             choice = false;
-                            break;
-                        default:
-                            Console.WriteLine("Error data!");
-                            break;
-                    }
+                        }
+                        Console.Clear();
+                        break;
                 }
 
-                
-                connection.Close();
             }
+            #region Database Exception
+            catch (NpgsqlException exDatabase)
+            {
+                Console.Clear();
+                Console.WriteLine("\nDatabase, username, port or password may be wrong!");
+                Console.ReadKey();
+                Console.Clear();
+            }
+            #endregion
+
+            #region Socket Exception
+            catch (System.Net.Sockets.SocketException exSocket)
+            {
+                Console.Clear();
+                Console.WriteLine("\nThe host may be in error!");
+                Console.ReadKey();
+                Console.Clear();
+            }
+            #endregion
+
+            #region General Exception
+            catch (Exception ex)
+            {
+                Console.Clear();
+                Console.WriteLine("\nAn error occurred in the program. Please try again!");
+                Console.ReadKey();
+                Console.Clear();
+            }
+            #endregion
+        } while (choice);
+
+
     }
-        catch (Exception ex) 
+
+    static List<string> ElementsInBaseConvert(string query)
+    {
+        List<string> list = new List<string>();
+
+        using (NpgsqlConnection connection = new NpgsqlConnection(ConnectionString))
         {
-            Console.WriteLine(ex.Message);
-            Console.ReadKey();
-            Console.Clear();
-            goto metka;
+            connection.Open();
+            using (var cmd = new NpgsqlCommand(query, connection))
+            {
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        list.Add(reader.GetString(0)); // Baza nomini chiqaradi
+                    }
+                    list.Add("Back");
+                }
+            }
+            connection.Close();
         }
 
+        return list;
     }
+    static string WorkingWithLists(List<string> list)
+    {
+        int cursor = 0;
+        string name = string.Empty;
+        while (true)
+        {
+            Console.Clear();
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (cursor == i)
+                {
+                    Console.BackgroundColor = ConsoleColor.White;
+                    Console.ForegroundColor = ConsoleColor.Black;
+                }
+                System.Console.WriteLine(list[i]);
+                Console.ResetColor();
 
+            }
+            var kl = Console.ReadKey(true);
+
+            if (kl.Key == ConsoleKey.DownArrow)
+            {
+                cursor = (cursor + 1) % list.Count;
+            }
+            else if (kl.Key == ConsoleKey.UpArrow)
+            {
+                cursor = (cursor + list.Count - 1) % list.Count;
+            }
+            else if (kl.Key == ConsoleKey.Enter)
+            {
+                name = list[cursor];
+                break;
+            }
+        }
+        return name;
+    }
 }
